@@ -103,33 +103,85 @@ def run(args):
     else:
         para_starts = all_para_starts
 
-    # Count progress
+    # Count progress — reconcile JSON status with actual files on disk
     total = len(para_starts)
-    done = sum(1 for s in para_starts if s["status"] == "done")
+    output_dir = os.path.join(os.getcwd(), OUTPUT_BASE, book_name)
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Scan existing WAV files
+    existing_wavs = set()
+    if os.path.isdir(output_dir):
+        for root, dirs, files in os.walk(output_dir):
+            for f in files:
+                if f.endswith(".wav"):
+                    existing_wavs.add(os.path.join(root, f))
+
+    done = 0; fixed_file_missing = 0; fixed_file_found = 0
+    for s in para_starts:
+        expected_path = os.path.join(output_dir, s.get("audio_path", "")) if s.get("audio_path") else ""
+        file_exists = expected_path in existing_wavs if expected_path else False
+
+        if s["status"] == "done":
+            if file_exists:
+                done += 1
+            else:
+                s["status"] = "pending"
+                s["audio_path"] = ""
+                fixed_file_missing += 1
+        elif s["status"] in ("pending", "error", "failed"):
+            if file_exists:
+                s["status"] = "done"
+                done += 1
+                fixed_file_found += 1
+
     errors = sum(1 for s in para_starts if s["status"] == "error")
     failed = sum(1 for s in para_starts if s["status"] == "failed")
     pending = total - done - errors - failed
+
+    # Fix detection summary
+    fix_msgs = []
+    if fixed_file_missing:
+        fix_msgs.append(f"{fixed_file_missing} 段文件丢失 → 重新生成")
+    if fixed_file_found:
+        fix_msgs.append(f"{fixed_file_found} 段文件存在 → 标记完成")
+    if fix_msgs:
+        save_novel(book_name, novel)
 
     print()
     print(f"📖 {novel.get('novel_title', book_name)}")
     print(f"🎤 引擎: Qwen3-TTS 0.6B")
     print(f"🔊 Speaker: {speaker}  |  🎭 风格: {instruct}")
+    print()
+    print(f"📊 目标: {total} 段")
+    print(f"   已完成: {done} 段 ({100*done//max(total,1)}%)")
+    if fix_msgs:
+        for m in fix_msgs:
+            print(f"   🔧 {m}")
+    if errors:
+        print(f"   错误: {errors} 段")
+    if failed:
+        print(f"   失败: {failed} 段")
+    if pending:
+        print(f"   待处理: {pending} 段")
 
-    if done > 0 or errors > 0 or failed > 0:
-        print(f"\n📊 已有进度: 完成 {done}/{total} | 错误 {errors} | 失败 {failed} | 待处理 {pending}")
-        print("\n   [1] 断点续传（推荐）  [2] 重新生成")
+    if pending == 0:
+        print(f"\n✅ 全部完成！")
+        return
+
+    if done > 0:
+        print(f"\n   [1] 断点续传（推荐）  [2] 重新生成")
         if input("   选哪个？[1]: ").strip() == "2":
             for s in para_starts:
+                if s["status"] == "done":
+                    continue  # keep done segments
                 s["status"] = "pending"
                 s["audio_path"] = ""
             save_novel(book_name, novel)
-            done, errors, failed = 0, 0, 0
-            print("   已重置")
+            done = sum(1 for s in para_starts if s["status"] == "done")
+            errors = failed = 0
+            print(f"   已重置。保持 {done} 段已完成")
     else:
-        print(f"   共 {total} 段待生成\n")
-
-    output_dir = os.path.join(os.getcwd(), OUTPUT_BASE, book_name)
-    os.makedirs(output_dir, exist_ok=True)
+        print()
 
     # ── Generation loop ──
     para_count = 0
