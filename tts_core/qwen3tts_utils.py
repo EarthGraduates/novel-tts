@@ -14,6 +14,8 @@ os.environ.setdefault("HSA_OVERRIDE_GFX_VERSION", "11.0.1")
 os.environ.setdefault("HIP_VISIBLE_DEVICES", "0")
 os.environ.setdefault("MIOPEN_FIND_MODE", "2")
 os.environ.setdefault("TORCH_BLAS_PREFER_HIPBLASLT", "0")
+os.environ.setdefault("TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL", "1")
+os.environ.setdefault("FLASH_ATTENTION_TRITON_AMD_AUTOTUNE", "TRUE")
 
 import torch
 
@@ -29,7 +31,7 @@ def get_model(model_id="Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice"):
     if _model is None:
         from qwen_tts import Qwen3TTSModel
 
-        _model = Qwen3TTSModel.from_pretrained(model_id, device_map="cuda:0")
+        _model = Qwen3TTSModel.from_pretrained(model_id, device_map="cuda:0", torch_dtype=torch.bfloat16)
 
         # torch.compile with reduce-overhead (includes CUDA Graph optimization)
         if not _compile_applied:

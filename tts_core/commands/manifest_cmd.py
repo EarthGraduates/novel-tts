@@ -13,7 +13,7 @@ from tts_core.config import (
 
 def get_editor():
     """Get the user's preferred editor."""
-    return os.environ.get("EDITOR", os.environ.get("VISUAL", "vim"))
+    return os.environ.get("EDITOR", os.environ.get("VISUAL", "nano"))
 
 
 def run(args):

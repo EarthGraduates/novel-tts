@@ -7,6 +7,8 @@ import os
 # ── ROCm performance defaults (must be set before any torch import) ──────
 os.environ.setdefault("MIOPEN_FIND_MODE", "2")
 os.environ.setdefault("TORCH_BLAS_PREFER_HIPBLASLT", "0")
+os.environ.setdefault("TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL", "1")
+os.environ.setdefault("FLASH_ATTENTION_TRITON_AMD_AUTOTUNE", "TRUE")
 
 # Ensure we can import tts_core from project root
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))

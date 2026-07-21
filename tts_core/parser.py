@@ -48,8 +48,9 @@ def read_file(filepath):
 # Chinese chapter patterns, ordered by specificity
 CHAPTER_PATTERNS = [
     # 第X章 / 第XX章 / 第XXX章 (Chinese numerals + Arabic numerals)
+    #   ^ anchor: must be at line start (avoids "详见第一章" false matches)
     re.compile(
-        r"第[零一二三四五六七八九十百千\d]+[章回节集]"
+        r"^[\s　]*第[零一二三四五六七八九十百千\d]+[章回节集]"
         r"(?:\s|　|[：:])?"
         r".*$"
     ),
@@ -84,8 +85,20 @@ FRONT_MATTER_PATTERNS = [
 ]
 
 
-def is_chapter_title(line):
-    """Check if a line contains a chapter title pattern."""
+# Max length of a chapter title line in characters.
+# Lines longer than this are almost certainly body text, not titles.
+MAX_CHAPTER_TITLE_LEN = 50
+
+
+def is_chapter_title(line, max_len=MAX_CHAPTER_TITLE_LEN):
+    """Check if a line contains a chapter title pattern.
+
+    Requires the line to start with the pattern (^ anchor) and be ≤ max_len chars
+    to avoid false positives like "详见第一章" in body text.
+    """
+    stripped = line.strip()
+    if len(stripped) > max_len:
+        return False
     for pat in CHAPTER_PATTERNS:
         if pat.search(line):
             return True
@@ -419,17 +432,17 @@ def parse(filepath):
 def _add_paragraph(para_text, ch_id, all_sentences, ch_para_ranges, current_global_order):
     """Add a paragraph's sentences to all_sentences, handling length-based splitting.
 
-    Recursively splits until every chunk is ≤ 200 chars so each TTS generation
-    unit stays within the model's comfortable input range.
+    Recursively splits until every chunk is ≤ 500 chars so each TTS generation
+    unit stays within Qwen3-TTS's comfortable input range (max_new_tokens=2048).
     """
     sentences = split_sentences(para_text)
     if not sentences:
         return
 
-    _split_and_emit(sentences, ch_id, all_sentences, ch_para_ranges, max_chars=200)
+    _split_and_emit(sentences, ch_id, all_sentences, ch_para_ranges, max_chars=500)
 
 
-def _split_and_emit(sentences, ch_id, all_sentences, ch_para_ranges, max_chars=200):
+def _split_and_emit(sentences, ch_id, all_sentences, ch_para_ranges, max_chars=500):
     """Recursively split sentences into chunks ≤ max_chars and emit each chunk."""
     total = sum(len(s) for s in sentences)
     if total <= max_chars or len(sentences) == 1:
@@ -476,7 +489,7 @@ def _emit_para_sentences(sentences, ch_id, all_sentences, ch_para_ranges):
     ch_para_ranges.append([start_order, end_order])
 
 
-def find_split_point(sentences, max_chars=200):
+def find_split_point(sentences, max_chars=500):
     """Find a sentence index where splitting would keep both halves ≤ max_chars."""
     if not sentences:
         return None

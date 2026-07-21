@@ -3,6 +3,9 @@
 import os
 import sys
 import time
+import csv
+from datetime import datetime
+from collections import deque
 import numpy as np
 
 from tts_core.config import (
@@ -14,6 +17,56 @@ from tts_core.qwen3tts_utils import (
 )
 
 OUTPUT_BASE = "novels/output"
+ETA_WINDOW = 10  # number of recent segments for ETA calculation
+
+
+def _init_log(log_path):
+    """Create log file with CSV header if it doesn't exist."""
+    if not os.path.exists(log_path):
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["timestamp", "chapter_id", "start_order",
+                             "end_order", "chars", "duration_s", "status"])
+
+
+def _log_segment(log_path, ch_id, start_order, end_order, chars, duration_s, status):
+    """Append one segment result to the generate log."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(log_path, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([timestamp, ch_id, start_order, end_order,
+                         chars, f"{duration_s:.1f}", status])
+
+
+def _read_log_durations(log_path, window=ETA_WINDOW):
+    """Read the last N successful durations from the log, returns list of floats."""
+    if not os.path.exists(log_path):
+        return []
+    durations = []
+    with open(log_path, "r", encoding="utf-8") as f:
+        reader = csv.reader(f)
+        next(reader, None)  # skip header
+        for row in reader:
+            if len(row) >= 7 and row[6] == "ok":
+                try:
+                    durations.append(float(row[5]))
+                except ValueError:
+                    pass
+    return durations[-window:]
+
+
+def _format_eta(remaining, avg_duration_s):
+    """Format ETA string from remaining count and average duration."""
+    total_s = remaining * avg_duration_s
+    if total_s < 60:
+        return f"{total_s:.0f}s"
+    elif total_s < 3600:
+        return f"{total_s / 60:.0f}m{total_s % 60:.0f}s"
+    else:
+        h = int(total_s / 3600)
+        m = int((total_s % 3600) / 60)
+        return f"{h}h{m}m"
 
 
 def run(args):
@@ -107,6 +160,10 @@ def run(args):
     total = len(para_starts)
     output_dir = os.path.join(os.getcwd(), OUTPUT_BASE, book_name)
     os.makedirs(output_dir, exist_ok=True)
+
+    # Init generate log
+    log_path = os.path.join(output_dir, "generate.log")
+    _init_log(log_path)
 
     # Scan existing WAV files
     existing_wavs = set()
@@ -215,7 +272,15 @@ def run(args):
                                 key=lambda s: s["order"])
                     text = "".join(s["text"] for s in ps)
 
-                    print(f"[{para_count}/{total}] {ch_id}/段[{start_order}-{end_order}]",
+                    # ETA
+                    recent = _read_log_durations(log_path)
+                    eta_str = ""
+                    if recent and pending > 0:
+                        avg_s = sum(recent) / len(recent)
+                        remaining = pending - done
+                        eta_str = f" | ETA {_format_eta(remaining, avg_s)}"
+
+                    print(f"[{para_count}/{total}] {ch_id}/段[{start_order}-{end_order}]{eta_str}",
                           end=" ", flush=True)
 
                     def _gen_and_save():
@@ -230,18 +295,26 @@ def run(args):
 
                     try:
                         dur = _gen_and_save()
+                        _log_segment(log_path, ch_id, start_order, end_order,
+                                     len(text), dur, "ok")
                         print(f"✓ {dur:.1f}s")
                     except Exception as e:
+                        _log_segment(log_path, ch_id, start_order, end_order,
+                                     len(text), 0, "error_retry")
                         print(f"✗ {str(e)[:80]}")
                         time.sleep(3)
                         try:
                             dur = _gen_and_save()
+                            _log_segment(log_path, ch_id, start_order, end_order,
+                                         len(text), dur, "ok")
                             print("✓")
                         except Exception:
                             para_s["status"] = "error"
                             para_s["audio_path"] = ""
                             save_novel(book_name, novel)
                             error_list.append((ch_id, (start_order, end_order)))
+                            _log_segment(log_path, ch_id, start_order, end_order,
+                                         len(text), 0, "error")
                             print("✗ → error")
 
     # ── Retry errors ──
@@ -262,11 +335,15 @@ def run(args):
                 para_s["status"] = "done"
                 para_s["audio_path"] = wav_path
                 save_novel(book_name, novel)
-                print("✓")
+                _log_segment(log_path, ch_id, start_order, end_order,
+                             len(text), len(wav) / sr, "ok_retry")
+                print("  ✓")
             except Exception:
                 para_s["status"] = "failed"
                 save_novel(book_name, novel)
-                print("✗ → failed")
+                _log_segment(log_path, ch_id, start_order, end_order,
+                             len(text), 0, "failed")
+                print("  ✗ → failed")
 
     # ── Chapter concat ──
     print("\n🔧 章节拼接中...")
@@ -305,6 +382,9 @@ def run(args):
     print(f"\n{'═'*30}")
     print(f"✅ 完成 {fd}/{total}  |  ❌ 错误 {fe}  |  ⛔ 失败 {ff}")
     print(f"📁 {output_dir}")
+    print(f"📋 生成日志: {log_path}")
+    if fe > 0 or ff > 0:
+        print(f"💡 运行 novel-tts generate 进行断点续传")
 
 
 def _save_wav(wav, path, sample_rate=24000):
