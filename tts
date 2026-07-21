@@ -1,0 +1,67 @@
+#!/home/phoenix/miniconda3/envs/qwen3-tts/bin/python
+"""TTS Novel-to-Audiobook Pipeline — CLI entry point (Qwen3-TTS)."""
+
+import sys
+import os
+
+# ── ROCm performance defaults (must be set before any torch import) ──────
+os.environ.setdefault("MIOPEN_FIND_MODE", "2")
+os.environ.setdefault("TORCH_BLAS_PREFER_HIPBLASLT", "0")
+
+# Ensure we can import tts_core from project root
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print_usage()
+        sys.exit(1)
+
+    cmd = sys.argv[1]
+
+    if cmd == "init":
+        from tts_core.commands.init_cmd import run
+        run(sys.argv[2:])
+    elif cmd == "parse":
+        from tts_core.commands.parse_cmd import run
+        run(sys.argv[2:])
+    elif cmd == "manifest":
+        from tts_core.commands.manifest_cmd import run
+        run(sys.argv[2:])
+    elif cmd == "view":
+        from tts_core.commands.view_cmd import run
+        run(sys.argv[2:])
+    elif cmd == "apply":
+        from tts_core.commands.apply_cmd import run
+        run(sys.argv[2:])
+    elif cmd == "generate":
+        from tts_core.commands.generate_cmd import run
+        run(sys.argv[2:])
+    elif cmd == "status":
+        from tts_core.commands.status_cmd import run
+        run(sys.argv[2:])
+    else:
+        print(f"未知命令: {cmd}")
+        print_usage()
+        sys.exit(1)
+
+
+def print_usage():
+    print("tts — 小说转有声读物工具 (Qwen3-TTS)")
+    print()
+    print("用法: tts <命令> [参数]")
+    print()
+    print("命令:")
+    print("  init        项目初始化（交互式向导）")
+    print("  parse       解析小说文本 → JSON")
+    print("  manifest    编辑章节清单")
+    print("  view <ID>   查看/编辑章节详情")
+    print("  apply       应用 manifest 修改")
+    print("  generate    开始音频生成")
+    print("  status      查看生成进度")
+
+
+if __name__ == "__main__":
+    main()

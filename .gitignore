@@ -1,0 +1,30 @@
+# Audio output
+novels/output/
+novels/tmp/
+*.wav
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Novel source (large text files)
+*.txt
+novels/*.json
+novels/*.json.bak
+novels/*_manifest*
+
+# Internal tooling
+.wayfinder/
+
+# Large models / cache
+*.safetensors
+*.bin
