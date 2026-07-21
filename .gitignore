@@ -24,6 +24,9 @@ novels/*_manifest*
 
 # Internal tooling
 .wayfinder/
+.agents/
+.claude/
+skills-lock.json
 
 # Large models / cache
 *.safetensors
