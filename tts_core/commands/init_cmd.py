@@ -32,25 +32,53 @@ def run(args):
 
     print()
     print("╔══════════════════════════════════╗")
-    print("║   📖 TTS 有声读物 — 项目初始化   ║")
+    print("║   📖 novel-tts — 项目初始化      ║")
     print("║      引擎: Qwen3-TTS 0.6B        ║")
     print("╚══════════════════════════════════╝")
     print()
 
-    # ── Book path ──
-    while True:
-        book_path = input("📖 小说文件路径: ").strip()
-        if not book_path:
-            print("   请输入文件路径")
-            continue
-        book_path = os.path.abspath(os.path.expanduser(book_path))
-        if not os.path.exists(book_path):
-            print(f"   文件不存在: {book_path}")
-            continue
-        if not book_path.lower().endswith(".txt"):
-            print("   只支持 .txt")
-            continue
-        break
+    # ── Book path (remember previous) ──
+    # Scan existing configs to find previously used book paths
+    existing_configs = {}
+    for f in os.listdir(novels_dir):
+        if f.endswith("_config.json"):
+            cfg = load_config(f.replace("_config.json", ""))
+            if cfg and cfg.get("book_path"):
+                name = f.replace("_config.json", "")
+                existing_configs[name] = cfg["book_path"]
+
+    book_path = None
+    if existing_configs:
+        print("📖 已配置的小说:")
+        for i, (name, path) in enumerate(existing_configs.items(), 1):
+            exists = "✓" if os.path.exists(path) else "✗ 文件丢失"
+            print(f"   [{i}] {name}  → {path}  ({exists})")
+        print(f"   [n] 选择新文件")
+        print()
+        choice = _ask("   使用哪个", "1")
+        try:
+            idx = int(choice) - 1
+            names = list(existing_configs.keys())
+            if 0 <= idx < len(names):
+                book_path = existing_configs[names[idx]]
+                print(f"   使用: {book_path}\n")
+        except ValueError:
+            pass  # treat as "new file"
+
+    if not book_path:
+        while True:
+            book_path = input("📖 小说文件路径: ").strip()
+            if not book_path:
+                print("   请输入文件路径")
+                continue
+            book_path = os.path.abspath(os.path.expanduser(book_path))
+            if not os.path.exists(book_path):
+                print(f"   文件不存在: {book_path}")
+                continue
+            if not book_path.lower().endswith(".txt"):
+                print("   只支持 .txt")
+                continue
+            break
 
     book_name = book_name_from_path(book_path)
     print(f"   书名: {book_name}\n")
@@ -74,67 +102,89 @@ def run(args):
         sys.exit(1)
     print()
 
-    # ── Speaker selection ──
-    print("🔊 选择朗读音色:")
-    for i, spk in enumerate(AVAILABLE_SPEAKERS):
-        tag = ""
-        if spk == "Eric":
-            tag = " (四川话)"
-        elif spk == "Dylan":
-            tag = " (北京话)"
-        elif spk == "Uncle_Fu":
-            tag = " ← 推荐旁白"
-        print(f"   [{i+1}] {spk}{tag}")
-    print()
+    # ── Speaker + Style + Preview loop ──
+    # Gender mapping for speakers
+    SPEAKER_GENDER = {
+        "Vivian":   "女", "Serena": "女", "Ono_Anna": "女", "Sohee": "女",
+        "Uncle_Fu": "男", "Ryan": "男", "Aiden": "男",
+        "Eric": "男 · 四川话", "Dylan": "男 · 北京话",
+    }
+    # Style translations
+    STYLE_TRANS = {
+        "narration": "旁白", "gentle": "温柔", "sad": "悲伤",
+        "angry": "愤怒", "cheerful": "欢快", "serious": "严肃",
+    }
 
     speaker = DEFAULT_SPEAKER
+    instruct = DEFAULT_INSTRUCT
+
     while True:
-        choice = _ask(f"   选哪个", "6")  # Uncle_Fu is #6
+        # ── Speaker selection ──
+        print("🔊 选择朗读音色:")
+        for i, spk in enumerate(AVAILABLE_SPEAKERS):
+            gender = SPEAKER_GENDER.get(spk, "")
+            tag = f"({gender})" if gender else ""
+            hint = " ← 推荐旁白" if spk == "Uncle_Fu" else ""
+            print(f"   [{i+1}] {spk} {tag}{hint}")
+        print()
+
+        choice = _ask("   选哪个", "6")  # Uncle_Fu
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(AVAILABLE_SPEAKERS):
                 speaker = AVAILABLE_SPEAKERS[idx]
-                break
         except ValueError:
             if choice in AVAILABLE_SPEAKERS:
                 speaker = choice
-                break
-        print(f"   无效选择，请输入 1-{len(AVAILABLE_SPEAKERS)} 或 speaker 名称")
+            elif choice:
+                print(f"   无效选择，请输入 1-{len(AVAILABLE_SPEAKERS)} 或 speaker 名称")
+                continue
 
-    # ── Voice instruction ──
-    print(f"\n🎭 朗读风格 (instruct):")
-    styles = ["narration", "gentle", "sad", "angry", "cheerful", "serious"]
-    for i, s in enumerate(styles):
-        tag = " ← 推荐旁白" if s == "narration" else ""
-        print(f"   [{i+1}] {s}{tag}")
-    print(f"   [0] 无（默认音色）")
+        # ── Voice instruction ──
+        print(f"\n🎭 朗读风格:")
+        styles = list(STYLE_TRANS.keys())
+        for i, s in enumerate(styles):
+            cn = STYLE_TRANS.get(s, "")
+            tag = " ← 推荐旁白" if s == "narration" else ""
+            print(f"   [{i+1}] {s}（{cn}）{tag}")
+        print(f"   [0] 无（默认音色）")
 
-    instruct = DEFAULT_INSTRUCT
-    choice = _ask("   选哪个", "1")
-    try:
-        idx = int(choice) - 1
-        if 0 <= idx < len(styles):
-            instruct = styles[idx]
-    except ValueError:
-        if choice in styles:
-            instruct = choice
+        choice = _ask("   选哪个", "1")
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(styles):
+                instruct = styles[idx]
+        except ValueError:
+            if choice in styles:
+                instruct = choice
+            elif choice not in ("", "0"):
+                print(f"   无效选择")
+                continue
 
-    # ── Preview ──
-    print(f"\n🔊 试听: {speaker} / {instruct}")
-    print("   生成中...", end=" ", flush=True)
-    try:
-        audio, sr = generate_preview(PREVIEW_TEXT, speaker=speaker, instruct=instruct)
-        preview_path = os.path.join(novels_abs, "tmp", "preview_qwen3.wav")
-        save_preview_wav(audio, preview_path, sr)
-        print("✓")
-        print(f"   试听: {preview_path}")
-    except Exception as e:
-        print(f"✗ {e}")
-        sys.exit(1)
+        # ── Preview ──
+        print(f"\n🔊 试听: {speaker} / {instruct}")
+        print("   生成中...", end=" ", flush=True)
+        try:
+            audio, sr = generate_preview(PREVIEW_TEXT, speaker=speaker, instruct=instruct)
+            preview_path = os.path.join(novels_abs, "tmp", "preview_qwen3.wav")
+            save_preview_wav(audio, preview_path, sr)
+            print("✓")
+            print(f"   试听: {preview_path}")
+        except Exception as e:
+            print(f"✗ {e}")
+            sys.exit(1)
 
-    if not _ask_confirm("   满意吗", "y"):
-        print("   请重新运行 novel-tts init 选择其他音色")
-        sys.exit(0)
+        print()
+        print("   [1] 满意，保存配置")
+        print("   [2] 重新选择音色/风格")
+        print("   [0] 退出")
+        choice = _ask("   选哪个", "1")
+        if choice == "1":
+            break
+        elif choice == "0":
+            print("   已取消")
+            sys.exit(0)
+        # else: loop back to re-select
 
     # ── Save config ──
     config = {
