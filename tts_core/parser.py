@@ -541,10 +541,10 @@ def generate_manifest(novel):
 
     lines = []
     lines.append(f"# Chapter Manifest — {novel.get('novel_title', 'Unknown')}")
-    lines.append("# 编辑操作列后保存，运行 tts apply 应用")
+    lines.append("# 编辑操作列后保存，运行 novel-tts apply 应用")
     lines.append("# 操作: K(keep) | M(merge) | S(split) | X(skip)")
     lines.append("# M: 合并到上一章（删除本章标题）")
-    lines.append("# S: 需拆分（用 tts view <ID> 标记拆点）")
+    lines.append("# S: 需拆分（用 novel-tts view <ID> 标记拆点）")
     lines.append("# X: 标记为 front_matter，不朗读")
     lines.append("")
     lines.append(f"{'OP':6s} {'ID':6s} {'句数':6s} {'标题'}")

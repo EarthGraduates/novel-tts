@@ -1,4 +1,4 @@
-"""tts init — Interactive project initialization (Qwen3-TTS)."""
+"""novel-tts init — Interactive project initialization (Qwen3-TTS)."""
 
 import os
 import sys
@@ -61,7 +61,7 @@ def run(args):
         print(f"⚠️  已有配置: {config_path(book_name)}")
         if _ask("   [1] 重新配置  [2] 沿用已有", "2") == "2":
             print(f"\n✅ 沿用已有 → {config_path(book_name)}")
-            print(f"   下一步: tts parse {book_path}")
+            print(f"   下一步: novel-tts parse {book_path}")
             return
         print("   将覆盖已有配置...\n")
 
@@ -133,7 +133,7 @@ def run(args):
         sys.exit(1)
 
     if not _ask_confirm("   满意吗", "y"):
-        print("   请重新运行 tts init 选择其他音色")
+        print("   请重新运行 novel-tts init 选择其他音色")
         sys.exit(0)
 
     # ── Save config ──
@@ -149,4 +149,4 @@ def run(args):
     }
     save_config(book_name, config)
     print(f"\n✅ 配置已保存 → {config_path(book_name)}")
-    print(f"   下一步: tts parse {book_path}")
+    print(f"   下一步: novel-tts parse {book_path}")

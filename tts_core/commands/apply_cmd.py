@@ -1,4 +1,4 @@
-"""tts apply — Apply manifest + detail edits to novel.json."""
+"""novel-tts apply — Apply manifest + detail edits to novel.json."""
 
 import os
 import re
@@ -104,8 +104,8 @@ def run(args):
 
     mpath = manifest_path(book_name)
     if not os.path.exists(mpath):
-        print("❌ 没有 manifest.txt，请先运行 tts parse")
-        print("   或: tts manifest 生成章节清单")
+        print("❌ 没有 manifest.txt，请先运行 novel-tts parse")
+        print("   或: novel-tts manifest 生成章节清单")
         sys.exit(1)
 
     # Parse manifest ops

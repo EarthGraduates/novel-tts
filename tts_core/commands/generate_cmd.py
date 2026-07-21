@@ -1,4 +1,4 @@
-"""tts generate — Start audio generation with resume support (Qwen3-TTS)."""
+"""novel-tts generate — Start audio generation with resume support (Qwen3-TTS)."""
 
 import os
 import sys
@@ -25,10 +25,10 @@ def run(args):
     else:
         novels = [f for f in os.listdir(novels_dir) if f.endswith("_novel.json")]
         if not novels:
-            print("❌ 未找到 *_novel.json，请先运行 tts parse")
+            print("❌ 未找到 *_novel.json，请先运行 novel-tts parse")
             sys.exit(1)
         if len(novels) > 1:
-            print("多个 novel.json，请指定: tts generate <书名>")
+            print("多个 novel.json，请指定: novel-tts generate <书名>")
             sys.exit(1)
         book_name = novels[0].replace("_novel.json", "")
 

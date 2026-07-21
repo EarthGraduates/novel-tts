@@ -1,4 +1,4 @@
-"""tts status — Read novel.json and print generation progress."""
+"""novel-tts status — Read novel.json and print generation progress."""
 
 import os
 import sys
@@ -15,7 +15,7 @@ def run(args):
     else:
         novels = [f for f in os.listdir(novels_dir) if f.endswith("_novel.json")]
         if not novels:
-            print("❌ 未找到 *_novel.json，请先运行 tts parse 和 tts generate")
+            print("❌ 未找到 *_novel.json，请先运行 novel-tts parse 和 novel-tts generate")
             sys.exit(1)
         if len(novels) > 1:
             for n in novels:
@@ -65,7 +65,7 @@ def _print_status(book_name):
     if pending:
         print(f"   待处理: {pending} 段")
     if errors:
-        print(f"   错误:   {errors} 段 → 运行 tts generate 断点续传")
+        print(f"   错误:   {errors} 段 → 运行 novel-tts generate 断点续传")
     if failed:
         print(f"   失败:   {failed} 段 → 需手动处理")
     print()

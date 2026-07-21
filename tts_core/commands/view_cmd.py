@@ -1,4 +1,4 @@
-"""tts view <ID> — Open chapter detail for SPLIT marking."""
+"""novel-tts view <ID> — Open chapter detail for SPLIT marking."""
 
 import os
 import sys
@@ -41,7 +41,7 @@ def generate_detail(chapter_id, novel):
     lines = []
     lines.append(f"# Chapter {chapter_id} Detail — {ch_title}")
     lines.append(f"# 共 {len(ch_sentences)} 句，{para_count} 段")
-    lines.append("# 在要拆分处插入 >>> SPLIT <<< ，保存后运行 tts apply")
+    lines.append("# 在要拆分处插入 >>> SPLIT <<< ，保存后运行 novel-tts apply")
     lines.append("# 不要修改文字内容")
     lines.append("")
 
@@ -80,8 +80,8 @@ def generate_detail(chapter_id, novel):
 
 def run(args):
     if not args:
-        print("用法: tts view <章节ID>")
-        print("示例: tts view 0003")
+        print("用法: novel-tts view <章节ID>")
+        print("示例: novel-tts view 0003")
         sys.exit(1)
 
     chapter_id = args[0].zfill(4)  # normalize to 4-digit
@@ -90,7 +90,7 @@ def run(args):
     novels_dir = ensure_novels_dirs()
     novels = [f for f in os.listdir(novels_dir) if f.endswith("_novel.json")]
     if not novels:
-        print("❌ 未找到 *_novel.json，请先运行 tts parse")
+        print("❌ 未找到 *_novel.json，请先运行 novel-tts parse")
         sys.exit(1)
 
     book_name = novels[0].replace("_novel.json", "")
@@ -124,6 +124,6 @@ def run(args):
     editor = get_editor()
     print(f"📝 章节 {chapter_id} 详情 → {detail_path}")
     print(f"   编辑器: {editor}")
-    print(f"   在要拆分处插入 >>> SPLIT <<<，保存后运行 tts apply")
+    print(f"   在要拆分处插入 >>> SPLIT <<<，保存后运行 novel-tts apply")
 
     subprocess.run([editor, detail_path])

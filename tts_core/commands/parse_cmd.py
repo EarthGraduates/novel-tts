@@ -1,4 +1,4 @@
-"""tts parse — Parse novel text into JSON structure."""
+"""novel-tts parse — Parse novel text into JSON structure."""
 
 import os
 import sys
@@ -25,8 +25,8 @@ def run(args):
         novels_dir = ensure_novels_dirs()
         configs = [f for f in os.listdir(novels_dir) if f.endswith("_config.json")]
         if not configs:
-            print("❌ 未找到 *_config.json，请先运行 tts init")
-            print("   或: tts parse <小说文件路径>")
+            print("❌ 未找到 *_config.json，请先运行 novel-tts init")
+            print("   或: novel-tts parse <小说文件路径>")
             sys.exit(1)
         # Use first config found
         config_file = configs[0]
@@ -111,4 +111,4 @@ def run(args):
         f.write(manifest_content)
     print(f"✅ manifest → {mpath}")
     print()
-    print(f"   下一步: tts manifest 编辑章节清单")
+    print(f"   下一步: novel-tts manifest 编辑章节清单")
