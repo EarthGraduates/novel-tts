@@ -1,4 +1,4 @@
-# novel-tts 项目进度
+# novel-tts v1.0
 
 > 2026-07-21
 
@@ -9,7 +9,7 @@
 novel-tts 是一个小说转有声读物工具，使用 Qwen3-TTS 0.6B CustomVoice 引擎，
 在 AMD RX 7700 XT (ROCm 7.1) 上运行。
 
-## 二、当前状态：功能测试中
+## 二、当前状态：✅ v1.0 打版
 
 ### 已完成
 
