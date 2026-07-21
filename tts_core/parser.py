@@ -48,13 +48,17 @@ def read_file(filepath):
 # Chinese chapter patterns, ordered by specificity
 CHAPTER_PATTERNS = [
     # 第X章 / 第XX章 / 第XXX章 (Chinese numerals + Arabic numerals)
-    #   ^ anchor: must be at line start (avoids "详见第一章" false matches)
+    #   (?<!》) : 前面不能是 》— 排除 "详见《传国宝玺》第五十章" 这类书引
+    #   No ^ anchor — chapter titles may have book-name prefix (e.g. 茅山后裔第01章)
+    #   Length check in is_chapter_title() also filters body-text false positives
     re.compile(
-        r"^[\s　]*第[零一二三四五六七八九十百千\d]+[章回节集]"
+        r"(?<!》)第[零一二三四五六七八九十百千\d]+[章回节集]"
         r"(?:\s|　|[：:])?"
         r".*$"
     ),
     # Special: 楔子 / 序章 / 尾声 / 后记 / 番外 / 前言 / 引子
+    #   Must be at line start (or after whitespace).
+    #   "作品相关 序" is handled by preprocess_novel.py — cleaned to just "序"
     re.compile(
         r"(?:^[\s　]*楔子|^[\s　]*序章?|^[\s　]*前言|^[\s　]*引[子言]"
         r"|^[\s　]*尾声|^[\s　]*后记|^[\s　]*番外[篇]?"
@@ -80,8 +84,8 @@ VOLUME_PATTERNS = [
 ]
 
 FRONT_MATTER_PATTERNS = [
+    # Pure reference material — not chapters, should not be read aloud
     re.compile(r"作品相关|人物[志表]|角色介绍|设定集|内容简介"),
-    re.compile(r"^[\s　]*序\s*$"),
 ]
 
 
@@ -93,8 +97,9 @@ MAX_CHAPTER_TITLE_LEN = 50
 def is_chapter_title(line, max_len=MAX_CHAPTER_TITLE_LEN):
     """Check if a line contains a chapter title pattern.
 
-    Requires the line to start with the pattern (^ anchor) and be ≤ max_len chars
-    to avoid false positives like "详见第一章" in body text.
+    Uses length ≤ max_len to filter false positives (e.g. "详见第一章" in body text
+    is typically part of a much longer line). No ^ anchor — chapter titles may have
+    a book-name prefix like "茅山后裔第01章".
     """
     stripped = line.strip()
     if len(stripped) > max_len:
@@ -373,6 +378,24 @@ def parse(filepath):
             "paragraphs": ch_para_ranges,
         })
 
+    # Step 3.5: Remove false chapters — a real chapter has body content.
+    # If a detected "chapter" only has 1 sentence (just the title), it's a false
+    # positive from body text like "详见《传国宝玺》第五十章《千钧一发》".
+    real_chapters = []
+    removed_ids = set()
+    for ch in chapters:
+        ch_id = ch["id"]
+        ch_body_sents = [s for s in all_sentences
+                         if s["chapter_id"] == ch_id and s["type"] != "chapter_title"]
+        if len(ch_body_sents) == 0:
+            # Remove title sentence and mark for deletion
+            all_sentences[:] = [s for s in all_sentences if s["chapter_id"] != ch_id]
+            removed_ids.add(ch_id)
+        else:
+            real_chapters.append(ch)
+    if removed_ids:
+        print(f"   ⚠️  过滤 {len(removed_ids)} 个误判章节（仅标题无正文）: {sorted(removed_ids)}")
+
     # Step 4: Fix sentence IDs to use correct format
     # Re-ID all sentences with proper chapter_id and per-chapter numbering
     for sent in all_sentences:
@@ -397,7 +420,7 @@ def parse(filepath):
             chapter_sent_counters[ch_id] = count + 1
 
     # Step 5: Build TOC
-    toc = build_toc(chapters, all_sentences)
+    toc = build_toc(real_chapters, all_sentences)
 
     # Step 6: Build novel dict
     novel = {

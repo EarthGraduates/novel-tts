@@ -69,7 +69,7 @@ def run(args):
     # Parse
     print()
     print(f"📖 正在解析: {book_path}")
-    print(f"   规则: 行首 + \"第X章/第X回\" + 标题长度 ≤ 50字 → 章节标题")
+    print(f"   规则: 包含\"第X章/第X回\" + 前面非》 + 行 ≤ 50字 → 章节标题")
     print(f"   编码检测中...", end=" ", flush=True)
 
     try:
