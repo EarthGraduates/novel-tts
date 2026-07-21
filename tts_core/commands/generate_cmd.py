@@ -61,38 +61,27 @@ def run(args):
     print("⏳ 正在加载 Qwen3-TTS 模型...", flush=True)
     get_model()
 
-    # Count progress
     sentences = novel.get("sentences", [])
-    para_starts = [s for s in sentences if "status" in s]
-    total = len(para_starts)
-    done = sum(1 for s in para_starts if s["status"] == "done")
-    errors = sum(1 for s in para_starts if s["status"] == "error")
-    failed = sum(1 for s in para_starts if s["status"] == "failed")
-    pending = total - done - errors - failed
-
-    print()
-    print(f"📖 {novel.get('novel_title', book_name)}")
-    print(f"🎤 引擎: Qwen3-TTS 0.6B")
-    print(f"🔊 Speaker: {speaker}  |  🎭 风格: {instruct}")
+    all_para_starts = [s for s in sentences if "status" in s]
+    toc = novel.get("toc", [])
 
     # ── Chapter filter ──
-    toc = novel.get("toc", [])
     if chapter_filter != "X":
-        # Filter toc to only include the specified chapter
         filtered = []
+        matching = []
         for vol in toc:
             if vol.get("type") == "front_matter":
                 continue
             for part in vol.get("parts", []):
-                matching = [ch for ch in part.get("chapters", []) if ch["id"] == chapter_filter]
-                if matching:
+                m = [ch for ch in part.get("chapters", []) if ch["id"] == chapter_filter]
+                if m:
+                    matching = m
                     filtered.append({
                         "volume": vol.get("volume", 1),
                         "title": vol.get("title", ""),
-                        "parts": [{"part": part.get("part", 1), "title": part.get("title", ""), "chapters": matching}],
+                        "parts": [{"part": part.get("part", 1), "title": part.get("title", ""), "chapters": m}],
                     })
         if not filtered:
-            # Show available chapter IDs
             all_ids = []
             for vol in toc:
                 if vol.get("type") == "front_matter":
@@ -103,16 +92,28 @@ def run(args):
             print(f"   可用章节: {all_ids[0]} ~ {all_ids[-1]}" if all_ids else "")
             sys.exit(1)
         toc = filtered
-        print(f"📑 只生成章节: {chapter_filter}")
-        # Re-count only targeted sentences
+        # Only count paragraphs in this chapter
         ch_sentence_orders = set()
         for ch in matching:
             for para_range in ch.get("paragraphs", []):
                 ch_sentence_orders.update(range(para_range[0], para_range[1] + 1))
-        targeted_para_starts = [s for s in para_starts if s["order"] in ch_sentence_orders]
-        targeted_total = len(targeted_para_starts)
-        targeted_done = sum(1 for s in targeted_para_starts if s["status"] == "done")
-        print(f"   目标段落: {targeted_done}/{targeted_total} 已完成")
+        para_starts = [s for s in all_para_starts if s["order"] in ch_sentence_orders]
+        para_count_ch = sum(len(ch.get("paragraphs", [])) for ch in matching)
+        print(f"📑 只生成章节: {chapter_filter}（{para_count_ch} 段）")
+    else:
+        para_starts = all_para_starts
+
+    # Count progress
+    total = len(para_starts)
+    done = sum(1 for s in para_starts if s["status"] == "done")
+    errors = sum(1 for s in para_starts if s["status"] == "error")
+    failed = sum(1 for s in para_starts if s["status"] == "failed")
+    pending = total - done - errors - failed
+
+    print()
+    print(f"📖 {novel.get('novel_title', book_name)}")
+    print(f"🎤 引擎: Qwen3-TTS 0.6B")
+    print(f"🔊 Speaker: {speaker}  |  🎭 风格: {instruct}")
 
     if done > 0 or errors > 0 or failed > 0:
         print(f"\n📊 已有进度: 完成 {done}/{total} | 错误 {errors} | 失败 {failed} | 待处理 {pending}")
