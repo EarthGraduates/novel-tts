@@ -23,9 +23,17 @@ MENU = [
     ("status",   "查看生成进度"),
 ]
 
+# After each command, suggest the next logical step (Enter = proceed)
+NEXT_STEP = {
+    "init":     "parse",
+    "parse":    "manifest",
+    "manifest": "apply",
+    "apply":    "generate",
+}
+
 
 def run_cmd(cmd, args=None):
-    """Execute a single command. Returns True on success."""
+    """Execute a single command. Returns True on success, False on error."""
     if args is None:
         args = []
     try:
@@ -53,16 +61,20 @@ def run_cmd(cmd, args=None):
         else:
             print(f"未知命令: {cmd}")
             return False
-        return True
-    except SystemExit:
-        return True  # commands call sys.exit(0), treat as success
+    except SystemExit as e:
+        # sys.exit(0) = success, sys.exit(1) = error
+        return e.code == 0 or e.code is None
     except KeyboardInterrupt:
         print("\n⏹ 已取消")
         return True
+    except Exception as e:
+        print(f"\n❌ 错误: {e}")
+        return False
+    return True
 
 
 def menu():
-    """Interactive menu loop."""
+    """Interactive menu loop with workflow guidance."""
     while True:
         print()
         print("╔══════════════════════════════════════╗")
@@ -91,18 +103,36 @@ def menu():
             idx = int(choice) - 1
             if 0 <= idx < len(MENU):
                 cmd, desc = MENU[idx]
-                print(f"\n▶ {desc}")
-                run_cmd(cmd)
-                # Pause before returning to menu
-                if cmd not in ("init", "view"):  # these are short interactions
-                    try:
-                        input("\n  按 Enter 返回菜单...")
-                    except (EOFError, KeyboardInterrupt):
-                        print()
+                _run_with_next(cmd, desc)
             else:
                 print(f"  请输入 0-{len(MENU)}")
         except ValueError:
             print(f"  请输入数字")
+
+
+def _run_with_next(cmd, desc):
+    """Execute a command, then offer to jump to the next workflow step."""
+    print(f"\n▶ {desc}")
+    success = run_cmd(cmd)
+
+    if not success:
+        input("\n  按 Enter 返回菜单...")
+        return
+
+    next_cmd = NEXT_STEP.get(cmd)
+    if next_cmd:
+        # Find the next command's description
+        next_desc = next((d for n, d in MENU if n == next_cmd), next_cmd)
+        print(f"\n  下一步: {next_cmd} — {next_desc}")
+        try:
+            choice = input(f"  按 Enter 继续，或输入其他内容返回菜单: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not choice:
+            _run_with_next(next_cmd, next_desc)
+    else:
+        input("\n  按 Enter 返回菜单...")
 
 
 def main():
