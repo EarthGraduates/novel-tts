@@ -19,16 +19,24 @@ OUTPUT_BASE = "novels/output"
 def run(args):
     novels_dir = ensure_novels_dirs()
 
-    # Find novel.json
-    if args:
-        book_name = args[0].replace("_novel.json", "").replace(".json", "")
-    else:
+    # Parse args: [chapter_filter] or [book_name] [chapter_filter]
+    book_name = None
+    chapter_filter = "X"  # default: all
+
+    for a in (args or []):
+        if a == "X" or (len(a) == 4 and a.isdigit()):
+            chapter_filter = a
+        else:
+            book_name = a.replace("_novel.json", "").replace(".json", "")
+
+    # Auto-detect book_name if not specified
+    if not book_name:
         novels = [f for f in os.listdir(novels_dir) if f.endswith("_novel.json")]
         if not novels:
             print("❌ 未找到 *_novel.json，请先运行 novel-tts parse")
             sys.exit(1)
         if len(novels) > 1:
-            print("多个 novel.json，请指定: novel-tts generate <书名>")
+            print("多个 novel.json，请指定: novel-tts generate <书名> [章节]")
             sys.exit(1)
         book_name = novels[0].replace("_novel.json", "")
 
@@ -67,6 +75,45 @@ def run(args):
     print(f"🎤 引擎: Qwen3-TTS 0.6B")
     print(f"🔊 Speaker: {speaker}  |  🎭 风格: {instruct}")
 
+    # ── Chapter filter ──
+    toc = novel.get("toc", [])
+    if chapter_filter != "X":
+        # Filter toc to only include the specified chapter
+        filtered = []
+        for vol in toc:
+            if vol.get("type") == "front_matter":
+                continue
+            for part in vol.get("parts", []):
+                matching = [ch for ch in part.get("chapters", []) if ch["id"] == chapter_filter]
+                if matching:
+                    filtered.append({
+                        "volume": vol.get("volume", 1),
+                        "title": vol.get("title", ""),
+                        "parts": [{"part": part.get("part", 1), "title": part.get("title", ""), "chapters": matching}],
+                    })
+        if not filtered:
+            # Show available chapter IDs
+            all_ids = []
+            for vol in toc:
+                if vol.get("type") == "front_matter":
+                    continue
+                for part in vol.get("parts", []):
+                    all_ids.extend(ch["id"] for ch in part.get("chapters", []))
+            print(f"❌ 未找到章节 {chapter_filter}")
+            print(f"   可用章节: {all_ids[0]} ~ {all_ids[-1]}" if all_ids else "")
+            sys.exit(1)
+        toc = filtered
+        print(f"📑 只生成章节: {chapter_filter}")
+        # Re-count only targeted sentences
+        ch_sentence_orders = set()
+        for ch in matching:
+            for para_range in ch.get("paragraphs", []):
+                ch_sentence_orders.update(range(para_range[0], para_range[1] + 1))
+        targeted_para_starts = [s for s in para_starts if s["order"] in ch_sentence_orders]
+        targeted_total = len(targeted_para_starts)
+        targeted_done = sum(1 for s in targeted_para_starts if s["status"] == "done")
+        print(f"   目标段落: {targeted_done}/{targeted_total} 已完成")
+
     if done > 0 or errors > 0 or failed > 0:
         print(f"\n📊 已有进度: 完成 {done}/{total} | 错误 {errors} | 失败 {failed} | 待处理 {pending}")
         print("\n   [1] 断点续传（推荐）  [2] 重新生成")
@@ -84,7 +131,6 @@ def run(args):
     os.makedirs(output_dir, exist_ok=True)
 
     # ── Generation loop ──
-    toc = novel.get("toc", [])
     para_count = 0
     error_list = []
 

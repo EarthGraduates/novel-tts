@@ -31,6 +31,13 @@ NEXT_STEP = {
     "apply":    "generate",
 }
 
+# Commands that need user input before running
+# Each entry: (prompt, default, description)
+CMD_ARGS = {
+    "view":     ("章节ID（如 0003）", None, "输入要查看的章节编号"),
+    "generate": ("章节ID 或 X=全部", "X", "0001=生成第一章，X=生成全部章节"),
+}
+
 
 def run_cmd(cmd, args=None):
     """Execute a single command. Returns True on success, False on error."""
@@ -113,7 +120,28 @@ def menu():
 def _run_with_next(cmd, desc):
     """Execute a command, then offer to jump to the next workflow step."""
     print(f"\n▶ {desc}")
-    success = run_cmd(cmd)
+
+    # Prompt for arguments if the command needs them
+    args = []
+    if cmd in CMD_ARGS:
+        prompt, default, hint = CMD_ARGS[cmd]
+        if hint:
+            print(f"   {hint}")
+        if default:
+            prompt = f"   {prompt} [默认 {default}]"
+        else:
+            prompt = f"   {prompt}"
+        try:
+            val = input(f"{prompt}: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not val:
+            val = default if default else ""
+        if val:
+            args = [val]
+
+    success = run_cmd(cmd, args)
 
     if not success:
         input("\n  按 Enter 返回菜单...")
