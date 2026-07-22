@@ -66,19 +66,45 @@ def run(args):
             pass  # treat as "new file"
 
     if not book_path:
-        while True:
-            book_path = input("📖 小说文件路径: ").strip()
-            if not book_path:
-                print("   请输入文件路径")
-                continue
-            book_path = os.path.abspath(os.path.expanduser(book_path))
-            if not os.path.exists(book_path):
-                print(f"   文件不存在: {book_path}")
-                continue
-            if not book_path.lower().endswith(".txt"):
-                print("   只支持 .txt")
-                continue
-            break
+        # Scan data/ directory for .txt files
+        data_dir = os.path.join(os.getcwd(), "data")
+        txt_files = []
+        if os.path.isdir(data_dir):
+            txt_files = sorted([
+                f for f in os.listdir(data_dir)
+                if f.lower().endswith(".txt")
+            ])
+
+        if txt_files:
+            print("📖 发现以下小说文件:")
+            for i, f in enumerate(txt_files, 1):
+                size_mb = os.path.getsize(os.path.join(data_dir, f)) / (1024 * 1024)
+                print(f"   [{i}] data/{f}  ({size_mb:.1f} MB)")
+            print(f"   [0] 手动输入路径")
+            print()
+            choice = input("   选哪个？[1]: ").strip() or "1"
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(txt_files):
+                    book_path = os.path.join(data_dir, txt_files[idx])
+                    print(f"   使用: {book_path}\n")
+            except ValueError:
+                pass  # fall through to manual input
+
+        if not book_path:
+            while True:
+                book_path = input("📖 小说文件路径: ").strip()
+                if not book_path:
+                    print("   请输入文件路径")
+                    continue
+                book_path = os.path.abspath(os.path.expanduser(book_path))
+                if not os.path.exists(book_path):
+                    print(f"   文件不存在: {book_path}")
+                    continue
+                if not book_path.lower().endswith(".txt"):
+                    print("   只支持 .txt")
+                    continue
+                break
 
     book_name = book_name_from_path(book_path)
     print(f"   书名: {book_name}\n")
