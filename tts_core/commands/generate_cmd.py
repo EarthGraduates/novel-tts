@@ -16,8 +16,33 @@ from tts_core.qwen3tts_utils import (
     DEFAULT_SPEAKER, DEFAULT_INSTRUCT, DEFAULT_LANGUAGE,
 )
 
-OUTPUT_BASE = "novels/output"
+OUTPUT_BASE = "output"
 ETA_WINDOW = 10  # number of recent segments for ETA calculation
+
+
+def _chapter_filename(ch_id: str, title: str) -> str:
+    """Convert a chapter ID + title to a sortable safe filename.
+
+    Prefixes with chapter ID (e.g. 0001_) so files sort naturally in order.
+    Replaces spaces with underscores, strips filesystem-unfriendly chars,
+    and appends .wav extension.
+
+    Example:
+        "0001", "第1卷 传国宝玺 第1章 《茅山图志》"
+        → "0001_第1卷_传国宝玺_第1章_茅山图志.wav"
+    """
+    import re
+    # Remove angle brackets used as book title markers
+    name = title.replace("《", "").replace("》", "")
+    # Remove other problematic filename chars
+    name = re.sub(r'[<>:"/\\|?*]', '', name)
+    # Replace whitespace (spaces, tabs, full-width spaces) with underscore
+    name = re.sub(r'\s+', '_', name.strip())
+    # Collapse multiple underscores
+    name = re.sub(r'_+', '_', name)
+    # Strip leading/trailing underscores
+    name = name.strip('_')
+    return f"{ch_id}_{name}.wav"
 
 
 def _init_log(log_path):
@@ -88,10 +113,23 @@ def run(args):
         if not novels:
             print("❌ 未找到 *_novel.json，请先运行 novel-tts parse")
             sys.exit(1)
-        if len(novels) > 1:
-            print("多个 novel.json，请指定: novel-tts generate <书名> [章节]")
-            sys.exit(1)
-        book_name = novels[0].replace("_novel.json", "")
+        if len(novels) == 1:
+            book_name = novels[0].replace("_novel.json", "")
+        else:
+            print("📖 已解析的小说:")
+            for i, n in enumerate(novels, 1):
+                name = n.replace("_novel.json", "")
+                print(f"   [{i}] {name}")
+            print()
+            choice = input("   选哪个？[1]: ").strip() or "1"
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(novels):
+                    book_name = novels[idx].replace("_novel.json", "")
+                else:
+                    book_name = novels[0].replace("_novel.json", "")
+            except ValueError:
+                book_name = novels[0].replace("_novel.json", "")
 
     novel = load_novel(book_name)
     if not novel:
@@ -369,11 +407,12 @@ def run(args):
 
                 if para_wavs and ok:
                     para_wavs.sort(key=lambda p: int(os.path.basename(p).rsplit("_", 1)[1].replace(".wav", "")))
-                    _concat_wavs(para_wavs, os.path.join(output_dir, ch_id, "chapter.wav"))
+                    ch_filename = _chapter_filename(ch_id, ch["title"])
+                    _concat_wavs(para_wavs, os.path.join(output_dir, ch_filename))
                     ch["status"] = "done"
-                    ch["audio_path"] = f"{ch_id}/chapter.wav"
+                    ch["audio_path"] = ch_filename
                     save_novel(book_name, novel)
-                    print(f"  ✓ {ch_id} → {len(para_wavs)} 段")
+                    print(f"  ✓ {ch_id} → {ch_filename} ({len(para_wavs)} 段)")
 
     # ── Summary ──
     fd = sum(1 for s in sentences if s.get("status") == "done")

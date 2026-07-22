@@ -97,7 +97,7 @@ novel-tts 是一个**命令行小说转有声读物工具**，让用户在本地
 
 **规则**:
 - 每次生成完一段立即 `save_novel()` + 写日志 → Ctrl+C 安全
-- 日志文件: `novels/output/<书名>/generate.log`（CSV）
+- 日志文件: `output/<书名>/generate.log`（CSV）
 - ETA: 取最近 10 段平均耗时 × 剩余段数
 - 断点续传: `os.walk` 扫描已有 WAV + JSON status 对账
 

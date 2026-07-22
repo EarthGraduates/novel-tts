@@ -96,7 +96,23 @@ def run(args):
         print("❌ 未找到 *_novel.json")
         sys.exit(1)
 
-    book_name = novels[0].replace("_novel.json", "")
+    if len(novels) == 1:
+        book_name = novels[0].replace("_novel.json", "")
+    else:
+        print("📖 已解析的小说:")
+        for i, n in enumerate(novels, 1):
+            name = n.replace("_novel.json", "")
+            print(f"   [{i}] {name}")
+        print()
+        choice = input("   选哪个？[1]: ").strip() or "1"
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(novels):
+                book_name = novels[idx].replace("_novel.json", "")
+            else:
+                book_name = novels[0].replace("_novel.json", "")
+        except ValueError:
+            book_name = novels[0].replace("_novel.json", "")
     novel = load_novel(book_name)
     if not novel:
         print("❌ 无法加载 novel.json")

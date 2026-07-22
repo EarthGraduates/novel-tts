@@ -72,6 +72,6 @@ def _print_status(book_name):
     if done == total and ch_done == ch_total:
         print("   ✅ 全部完成！")
         # Find output
-        output_dir = os.path.join(os.getcwd(), "novels", "output", book_name)
+        output_dir = os.path.join(os.getcwd(), "output", book_name)
         if os.path.exists(output_dir):
             print(f"   📁 {output_dir}")

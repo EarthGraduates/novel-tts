@@ -28,8 +28,31 @@ def run(args):
             print("❌ 未找到 *_config.json，请先运行 novel-tts init")
             print("   或: novel-tts parse <小说文件路径>")
             sys.exit(1)
-        # Use first config found
-        config_file = configs[0]
+
+        # Let user choose which config to use
+        if len(configs) == 1:
+            config_file = configs[0]
+        else:
+            print("📖 已配置的小说:")
+            config_map = {}
+            for i, f in enumerate(configs, 1):
+                name = f.replace("_config.json", "")
+                cfg = load_config(name)
+                path = cfg.get("book_path", "?") if cfg else "?"
+                exists = "✓" if os.path.exists(path) else "✗ 文件丢失"
+                print(f"   [{i}] {name}  → {path}  ({exists})")
+                config_map[i] = name
+            print()
+            choice = input("   选哪个？[1]: ").strip() or "1"
+            try:
+                idx = int(choice)
+                if idx in config_map:
+                    config_file = f"{config_map[idx]}_config.json"
+                else:
+                    config_file = configs[0]
+            except ValueError:
+                config_file = configs[0]
+
         config = load_config(config_file.replace("_config.json", ""))
         if not config:
             print(f"❌ 无法加载配置: {config_file}")

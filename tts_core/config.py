@@ -10,7 +10,7 @@ NOVELS_DIR = "novels"
 def ensure_novels_dirs():
     """Ensure the novels/ directory structure exists."""
     base = os.path.join(os.getcwd(), NOVELS_DIR)
-    for sub in ["tmp", "speaker", "output"]:
+    for sub in ["tmp", "speaker"]:
         os.makedirs(os.path.join(base, sub), exist_ok=True)
     return base
 

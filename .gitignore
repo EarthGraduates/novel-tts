@@ -1,7 +1,29 @@
+# ── 提交白名单：只保留 tts_core/ novel-tts SKILL.md README.md PRD.md .gitignore ──
+
 # Audio output
-novels/output/
-novels/tmp/
 *.wav
+
+# Data directory (large TXT files)
+data/
+
+# Novel data
+novels/
+
+# Generated output
+output/
+
+# Benchmarks
+benchmarks/
+
+# Docs (except SKILL.md, handled below)
+docs/AI_FORMAT_PROMPT.md
+docs/MODEL_INVENTORY.md
+
+# Tests
+tests/
+
+# Assets
+asset/
 
 # Python
 __pycache__/
@@ -15,12 +37,6 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
-
-# Novel source (large text files)
-*.txt
-novels/*.json
-novels/*.json.bak
-novels/*_manifest*
 
 # Internal tooling
 .wayfinder/

@@ -24,7 +24,7 @@
 ./novel-tts status
 ```
 
-6 步走完，有声书在 `novels/output/<书名>/` 下。
+6 步走完，有声书在 `output/<书名>/` 下。
 
 ---
 
@@ -192,9 +192,9 @@ novels/
 ├── <书名>_manifest.txt            # 章节操作清单
 └── output/<书名>/
     ├── generate.log               # 生成日志（CSV）
+    ├── <章节名>.wav               # 章节拼接音频（以章节标题命名）
     └── <章节ID>/
-        ├── p_<ID>_<order>.wav     # 段落音频
-        └── chapter.wav            # 章节拼接音频
+        └── p_<ID>_<order>.wav     # 段落音频
 ```
 
 ---
