@@ -1,4 +1,4 @@
-"""novel-tts init — Interactive project initialization (Qwen3-TTS)."""
+"""novel-tts init — Interactive project initialization (multi-engine)."""
 
 import os
 import sys
@@ -6,10 +6,7 @@ import sys
 from tts_core.config import (
     ensure_novels_dirs, config_path, save_config, load_config, book_name_from_path,
 )
-from tts_core.qwen3tts_utils import (
-    get_model, generate_preview, save_preview_wav,
-    AVAILABLE_SPEAKERS, DEFAULT_SPEAKER, DEFAULT_INSTRUCT, DEFAULT_LANGUAGE,
-)
+from tts_core.engines import ENGINE_LIST
 
 PREVIEW_TEXT = "你好，欢迎使用语音合成。"
 
@@ -33,12 +30,10 @@ def run(args):
     print()
     print("╔══════════════════════════════════╗")
     print("║   📖 novel-tts — 项目初始化      ║")
-    print("║      引擎: Qwen3-TTS 0.6B        ║")
     print("╚══════════════════════════════════╝")
     print()
 
     # ── Book path (remember previous) ──
-    # Scan existing configs to find previously used book paths
     existing_configs = {}
     for f in os.listdir(novels_dir):
         if f.endswith("_config.json"):
@@ -63,7 +58,7 @@ def run(args):
                 book_path = existing_configs[names[idx]]
                 print(f"   使用: {book_path}\n")
         except ValueError:
-            pass  # treat as "new file"
+            pass
 
     if not book_path:
         # Scan data/ directory for .txt files
@@ -89,7 +84,7 @@ def run(args):
                     book_path = os.path.join(data_dir, txt_files[idx])
                     print(f"   使用: {book_path}\n")
             except ValueError:
-                pass  # fall through to manual input
+                pass
 
         if not book_path:
             while True:
@@ -119,81 +114,94 @@ def run(args):
             return
         print("   将覆盖已有配置...\n")
 
-    # ── Load model ──
-    print("⏳ 正在加载模型...", flush=True)
-    try:
-        get_model()
-    except Exception as e:
-        print(f"\n❌ 加载失败: {e}")
-        sys.exit(1)
+    # ── Engine selection ──
+    print("🔧 选择 TTS 引擎:")
+    for i, eng in enumerate(ENGINE_LIST, 1):
+        print(f"   [{i}] {eng.label}")
     print()
+    eng_choice = _ask("   选哪个", "1")
+    try:
+        idx = int(eng_choice) - 1
+        engine = ENGINE_LIST[idx] if 0 <= idx < len(ENGINE_LIST) else ENGINE_LIST[0]
+    except ValueError:
+        engine = ENGINE_LIST[0]
+
+    print(f"   引擎: {engine.label}\n")
+
+    # ── Load model (if needed) ──
+    if engine.needs_load:
+        print("⏳ 正在加载模型...", flush=True)
+        try:
+            engine.load()
+        except Exception as e:
+            print(f"\n❌ 加载失败: {e}")
+            sys.exit(1)
+        print()
+    else:
+        engine.load()  # no-op for cloud engines
 
     # ── Speaker + Style + Preview loop ──
-    # Gender mapping for speakers
-    SPEAKER_GENDER = {
-        "Vivian":   "女", "Serena": "女", "Ono_Anna": "女", "Sohee": "女",
-        "Uncle_Fu": "男", "Ryan": "男", "Aiden": "男",
-        "Eric": "男 · 四川话", "Dylan": "男 · 北京话",
-    }
-    # Style translations
-    STYLE_TRANS = {
-        "narration": "旁白", "gentle": "温柔", "sad": "悲伤",
-        "angry": "愤怒", "cheerful": "欢快", "serious": "严肃",
-    }
+    speakers = engine.SPEAKERS
+    styles = engine.STYLES
 
-    speaker = DEFAULT_SPEAKER
-    instruct = DEFAULT_INSTRUCT
+    # Default speaker/style from engine definitions
+    default_speaker = next((s["id"] for s in speakers if s.get("default")), speakers[0]["id"])
+    default_style = next((s["id"] for s in styles if s.get("default")), styles[0]["id"])
+
+    speaker = default_speaker
+    style = default_style
 
     while True:
         # ── Speaker selection ──
         print("🔊 选择朗读音色:")
-        for i, spk in enumerate(AVAILABLE_SPEAKERS):
-            gender = SPEAKER_GENDER.get(spk, "")
+        for i, spk in enumerate(speakers):
+            gender = spk.get("gender", "")
             tag = f"({gender})" if gender else ""
-            hint = " ← 推荐旁白" if spk == "Uncle_Fu" else ""
-            print(f"   [{i+1}] {spk} {tag}{hint}")
+            hint = " ← 推荐" if spk.get("default") else ""
+            print(f"   [{i+1}] {spk['name']} {tag}{hint}")
         print()
 
-        choice = _ask("   选哪个", "6")  # Uncle_Fu
+        # Count default speaker index for hint
+        default_spk_idx = next((i+1 for i, s in enumerate(speakers) if s["id"] == default_speaker), 1)
+        choice = _ask("   选哪个", str(default_spk_idx))
         try:
             idx = int(choice) - 1
-            if 0 <= idx < len(AVAILABLE_SPEAKERS):
-                speaker = AVAILABLE_SPEAKERS[idx]
+            if 0 <= idx < len(speakers):
+                speaker = speakers[idx]["id"]
         except ValueError:
-            if choice in AVAILABLE_SPEAKERS:
+            if choice in [s["id"] for s in speakers]:
                 speaker = choice
             elif choice:
-                print(f"   无效选择，请输入 1-{len(AVAILABLE_SPEAKERS)} 或 speaker 名称")
+                print(f"   无效选择，请输入 1-{len(speakers)} 或 speaker 名称")
                 continue
 
-        # ── Voice instruction ──
+        # ── Style selection ──
         print(f"\n🎭 朗读风格:")
-        styles = list(STYLE_TRANS.keys())
-        for i, s in enumerate(styles):
-            cn = STYLE_TRANS.get(s, "")
-            tag = " ← 推荐旁白" if s == "narration" else ""
-            print(f"   [{i+1}] {s}（{cn}）{tag}")
-        print(f"   [0] 无（默认音色）")
+        for i, st in enumerate(styles):
+            hint = " ← 推荐" if st.get("default") else ""
+            print(f"   [{i+1}] {st['name']}{hint}")
+        print(f"   [0] 无（默认风格）")
 
-        choice = _ask("   选哪个", "1")
+        default_st_idx = next((i+1 for i, s in enumerate(styles) if s["id"] == default_style), 1)
+        choice = _ask("   选哪个", str(default_st_idx))
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(styles):
-                instruct = styles[idx]
+                style = styles[idx]["id"]
         except ValueError:
-            if choice in styles:
-                instruct = choice
+            if choice in [s["id"] for s in styles]:
+                style = choice
             elif choice not in ("", "0"):
                 print(f"   无效选择")
                 continue
 
         # ── Preview ──
-        print(f"\n🔊 试听: {speaker} / {instruct}")
+        print(f"\n🔊 试听: {speaker} / {style}")
         print("   生成中...", end=" ", flush=True)
         try:
-            audio, sr = generate_preview(PREVIEW_TEXT, speaker=speaker, instruct=instruct)
-            preview_path = os.path.join(novels_abs, "tmp", "preview_qwen3.wav")
-            save_preview_wav(audio, preview_path, sr)
+            audio, sr = engine.preview(PREVIEW_TEXT, speaker=speaker, style=style)
+            preview_path = os.path.join(novels_abs, "tmp", "preview.wav")
+            engine.save_preview_wav(audio, preview_path, sr)
             print("✓")
             print(f"   试听: {preview_path}")
         except Exception as e:
@@ -210,17 +218,16 @@ def run(args):
         elif choice == "0":
             print("   已取消")
             sys.exit(0)
-        # else: loop back to re-select
 
     # ── Save config ──
     config = {
         "book_path": book_path,
         "voice_model": "single",
         "voice_profile": {
-            "engine": "qwen3-tts",
+            "engine": engine.name,
             "speaker": speaker,
-            "instruct": instruct,
-            "language": DEFAULT_LANGUAGE,
+            "instruct": style,
+            "language": "chinese",
         },
     }
     save_config(book_name, config)

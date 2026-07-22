@@ -1,4 +1,4 @@
-"""novel-tts generate — Start audio generation with resume support (Qwen3-TTS)."""
+"""novel-tts generate — Start audio generation with resume support (multi-engine)."""
 
 import os
 import sys
@@ -11,10 +11,7 @@ import numpy as np
 from tts_core.config import (
     ensure_novels_dirs, load_novel, save_novel, load_config,
 )
-from tts_core.qwen3tts_utils import (
-    get_model, infer_paragraph, AVAILABLE_SPEAKERS,
-    DEFAULT_SPEAKER, DEFAULT_INSTRUCT, DEFAULT_LANGUAGE,
-)
+from tts_core.engines import get_engine, ENGINE_LIST
 
 OUTPUT_BASE = "output"
 ETA_WINDOW = 10  # number of recent segments for ETA calculation
@@ -140,17 +137,29 @@ def run(args):
     config = load_config(book_name)
     voice = config.get("voice_profile", {}) if config else novel.get("voice_profile", {})
 
-    speaker = voice.get("speaker", DEFAULT_SPEAKER)
-    instruct = voice.get("instruct", DEFAULT_INSTRUCT)
-    language = voice.get("language", DEFAULT_LANGUAGE)
+    engine_name = voice.get("engine", "qwen3-tts")
+    engine = get_engine(engine_name)
+    if not engine:
+        print(f"❌ 未知引擎: {engine_name}")
+        sys.exit(1)
 
-    if speaker not in AVAILABLE_SPEAKERS:
-        print(f"⚠️  未知 speaker '{speaker}'，回退到 {DEFAULT_SPEAKER}")
-        speaker = DEFAULT_SPEAKER
+    speaker = voice.get("speaker", engine.SPEAKERS[0]["id"])
+    style = voice.get("instruct", engine.STYLES[0]["id"])
+    language = voice.get("language", "chinese")
 
-    # Load model (includes torch.compile + warmup)
-    print("⏳ 正在加载 Qwen3-TTS 模型...", flush=True)
-    get_model()
+    # Validate speaker against engine
+    known_speakers = [s["id"] for s in engine.SPEAKERS]
+    if speaker not in known_speakers:
+        print(f"⚠️  未知 speaker '{speaker}'，回退到 {known_speakers[0]}")
+        speaker = known_speakers[0]
+
+    # Load engine
+    engine_label = engine.label.split("（")[0]
+    print(f"⏳ 正在加载引擎: {engine_label}...", flush=True)
+    if engine.needs_load:
+        engine.load()
+    else:
+        engine.load()  # no-op
 
     sentences = novel.get("sentences", [])
     all_para_starts = [s for s in sentences if "status" in s]
@@ -244,8 +253,8 @@ def run(args):
 
     print()
     print(f"📖 {novel.get('novel_title', book_name)}")
-    print(f"🎤 引擎: Qwen3-TTS 0.6B")
-    print(f"🔊 Speaker: {speaker}  |  🎭 风格: {instruct}")
+    print(f"🎤 引擎: {engine.label}")
+    print(f"🔊 Speaker: {speaker}  |  🎭 风格: {style}")
     print()
     print(f"📊 目标: {total} 段")
     print(f"   已完成: {done} 段 ({100*done//max(total,1)}%)")
@@ -348,8 +357,8 @@ def run(args):
                           end=" ", flush=True)
 
                     def _gen_and_save():
-                        wav, sr = infer_paragraph(text, speaker=speaker,
-                                                  instruct=instruct, language=language)
+                        wav, sr = engine.infer(text, speaker=speaker,
+                                              style=style, language=language)
                         wav_path = f"{ch_id}/p_{ch_id}_{start_order}.wav"
                         _save_wav(wav, os.path.join(output_dir, wav_path), sr)
                         para_s["status"] = "done"
@@ -393,7 +402,7 @@ def run(args):
             text = "".join(s["text"] for s in ps)
             print(f"  {ch_id}/段[{start_order}-{end_order}]", end=" ", flush=True)
             try:
-                wav, sr = infer_paragraph(text, speaker=speaker, instruct=instruct, language=language)
+                wav, sr = engine.infer(text, speaker=speaker, style=style, language=language)
                 wav_path = f"{ch_id}/p_{ch_id}_{start_order}.wav"
                 _save_wav(wav, os.path.join(output_dir, wav_path), sr)
                 para_s["status"] = "done"
