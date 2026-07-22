@@ -149,20 +149,68 @@ def _run_with_next(cmd, desc):
         input("\n  按 Enter 返回菜单...")
         return
 
-    next_cmd = NEXT_STEP.get(cmd)
-    if next_cmd:
-        # Find the next command's description
-        next_desc = next((d for n, d in MENU if n == next_cmd), next_cmd)
-        print(f"\n  下一步: {next_cmd} — {next_desc}")
+    # ── Post-command: manifest gets a loop, others get next-step chain ──
+    if cmd == "manifest":
+        _manifest_loop()
+    else:
+        next_cmd = NEXT_STEP.get(cmd)
+        if next_cmd:
+            next_desc = next((d for n, d in MENU if n == next_cmd), next_cmd)
+            print(f"\n  下一步: {next_cmd} — {next_desc}")
+            try:
+                choice = input(f"  按 Enter 继续，或输入其他内容返回菜单: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return
+            if not choice:
+                _run_with_next(next_cmd, next_desc)
+        else:
+            input("\n  按 Enter 返回菜单...")
+
+
+def _manifest_loop():
+    """After manifest editing, loop until user is satisfied."""
+    while True:
+        print()
+        print("  章节清单编辑完成，是否满意？")
+        print("  [1] 满意，进入 apply 应用修改")
+        print("  [2] 继续编辑 manifest")
+        print("  [3] view 查看章节内容（标记拆分点）")
+        print("  [0] 返回菜单")
         try:
-            choice = input(f"  按 Enter 继续，或输入其他内容返回菜单: ").strip()
+            choice = input("  选哪个？[1]: ").strip() or "1"
         except (EOFError, KeyboardInterrupt):
             print()
             return
-        if not choice:
-            _run_with_next(next_cmd, next_desc)
-    else:
-        input("\n  按 Enter 返回菜单...")
+
+        if choice == "1":
+            apply_desc = next((d for n, d in MENU if n == "apply"), "apply")
+            print(f"\n  下一步: apply — {apply_desc}")
+            try:
+                go = input("  按 Enter 继续，或输入其他内容返回菜单: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                return
+            if not go:
+                _run_with_next("apply", apply_desc)
+            return
+        elif choice == "2":
+            _run_with_next("manifest", "编辑章节清单（合并/拆分/跳过）")
+            return
+        elif choice == "3":
+            # Let user view chapters
+            while True:
+                try:
+                    ch_id = input("  章节ID（如 0003，回车返回）: ").strip()
+                except (EOFError, KeyboardInterrupt):
+                    print()
+                    return
+                if not ch_id:
+                    break
+                run_cmd("view", [ch_id])
+            # After view, loop back to manifest menu
+        elif choice == "0":
+            return
 
 
 def main():
