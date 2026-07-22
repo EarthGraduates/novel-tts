@@ -155,6 +155,8 @@ def split_sentences(text, max_chars=300):
 
     First split by sentence-ending punctuation 。！？…
     Then, if any sentence exceeds max_chars, split again at ，；： within it.
+
+    Handles quoted text: "嘘，别说话！" stays as one sentence.
     """
     # Primary split: sentence-ending punctuation
     parts = re.split(r"(?<=[。！？…])", text)
@@ -175,7 +177,55 @@ def split_sentences(text, max_chars=300):
         else:
             sentences.append(part)
 
-    return sentences
+    # ── Post-process: merge sentences with unbalanced quotes ──
+    # Splitting on ！ inside "…！" leaves the closing " orphaned.
+    # Count quote pairs — if a sentence has unclosed quotes, merge forward.
+    QUOTE_PAIRS = {
+        '“': '”',   # " → "
+        '‘': '’',   # ' → '
+        '"':      '"',
+        "'":      "'",
+        '「': '」',   # 「 → 」
+        '『': '』',   # 『 → 』
+        '《': '》',   # 《 → 》
+        '(':      ')',
+        '（': '）',   # （ → ）
+        '[':      ']',
+        '【': '】',   # 【 → 】
+    }
+    CLOSING_SET = set(QUOTE_PAIRS.values())
+    OPENING_SET = set(QUOTE_PAIRS.keys())
+
+    def _quote_balance(s):
+        """Return net unclosed quotes: positive = more opens than closes."""
+        net = 0
+        for ch in s:
+            if ch in OPENING_SET:
+                net += 1
+            elif ch in CLOSING_SET:
+                net -= 1
+        return net
+
+    merged = []
+    for s in sentences:
+        if s in CLOSING_SET:
+            # Bare closing quote — always merge backward
+            if merged:
+                merged[-1] = merged[-1] + s
+            else:
+                merged.append(s)
+        elif (merged and s and s[0] in CLOSING_SET
+              and len(s) > 1):
+            # Sentence starts with a closing quote (e.g. "then text。")
+            # → merge with previous. The quote belongs to the prior sentence.
+            merged[-1] = merged[-1] + s
+        elif merged and _quote_balance(merged[-1]) > 0:
+            # Previous sentence has unclosed quotes → merge forward
+            merged[-1] = merged[-1] + s
+        else:
+            merged.append(s)
+
+    return merged
 
 
 # ── Paragraph detection ─────────────────────────────────────────────
