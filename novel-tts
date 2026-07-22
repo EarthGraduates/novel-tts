@@ -1,4 +1,4 @@
-#!/home/phoenix/miniconda3/envs/qwen3-tts/bin/python
+#!/usr/bin/env python
 """novel-tts — 小说转有声读物工具 (Qwen3-TTS)."""
 
 import sys
