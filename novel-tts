@@ -166,6 +166,11 @@ def _run_with_next(cmd, desc):
 
 
 def main():
+    # Handle --verbose / -v flag (must be set before imports)
+    if "--verbose" in sys.argv or "-v" in sys.argv:
+        os.environ["NOVEL_TTS_VERBOSE"] = "1"
+        sys.argv = [a for a in sys.argv if a not in ("--verbose", "-v")]
+
     if len(sys.argv) < 2:
         menu()
     else:
