@@ -79,6 +79,11 @@ def _mp3_to_wav(mp3_bytes):
     return data, sr
 
 
+def save_preview_wav(audio, path, sample_rate=24000):
+    import soundfile as sf
+    sf.write(path, audio, sample_rate)
+
+
 def _run_async(coro):
     """Run an async coroutine synchronously."""
     try:
