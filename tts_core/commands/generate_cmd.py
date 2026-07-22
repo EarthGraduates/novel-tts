@@ -278,6 +278,32 @@ def run(args):
     else:
         print()
 
+    # ── Confirm before starting ──
+    # Collect chapter range for summary
+    ch_ids = []
+    for vol in toc:
+        if vol.get("type") == "front_matter":
+            continue
+        for part in vol.get("parts", []):
+            for ch in part.get("chapters", []):
+                ch_ids.append(ch["id"])
+    if ch_ids:
+        ch_range = f"{ch_ids[0]} ~ {ch_ids[-1]}（共 {len(ch_ids)} 章）"
+    else:
+        ch_range = "无"
+
+    print(f"📑 章节: {ch_range}")
+    print(f"📊 段落: {total} 段  |  已完成: {done} 段  |  待处理: {pending} 段")
+    print()
+    try:
+        confirm = input("  是否开始生成？[Y/n]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("\n  已取消")
+        return
+    if confirm and confirm != "y":
+        print("  已取消")
+        return
+
     # ── Generation loop ──
     para_count = 0
     error_list = []
