@@ -103,38 +103,62 @@ init → parse → manifest → [view] → apply → generate → status
 
 ---
 
-## 硬件 & 环境
+## 安装
+
+根据你选择的 TTS 引擎，安装步骤不同。
+
+### 方案 A：Edge TTS（推荐入门，无需 GPU）
+
+```bash
+# 安装项目 + Edge TTS 依赖
+pip install edge-tts soundfile numpy
+
+# 下载 novel-tts
+git clone https://github.com/EarthGraduates/novel-tts.git
+cd novel-tts
+
+# 直接使用
+./novel-tts init  # 选择 Edge TTS 引擎
+```
+
+适用范围：任何有 Python 3.10+ 的机器，Windows / macOS / Linux 均可。
+
+### 方案 B：Qwen3-TTS（本地 GPU，需要 AMD ROCm）
+
+硬件要求：AMD RDNA3 显卡（RX 7000 系列），12GB+ VRAM 推荐。
 
 | 项目 | 详情 |
 |------|------|
 | GPU | AMD Radeon RX 7700 XT (gfx1101, RDNA3), 12 GB VRAM |
-| ROCm | 7.1.52802 |
+| ROCm | 7.1 |
 | PyTorch | 2.12.1+rocm7.1 |
-| Python | 3.10.20 |
-| OS | Ubuntu 26.04 |
-| 模型 | Qwen3-TTS-12Hz-0.6B-CustomVoice |
-
-### 安装
+| Python | 3.10 |
+| OS | Ubuntu 26.04（仅在此环境验证） |
+| 模型 | Qwen3-TTS-12Hz-0.6B-CustomVoice（~656 MB） |
 
 ```bash
-# 创建 conda 环境
+# 1. 创建 conda 环境
 conda create -n qwen3-tts python=3.10 -y
 conda activate qwen3-tts
 
-# 安装 PyTorch (ROCm)
+# 2. 安装 PyTorch (ROCm)
 pip install torch torchaudio --index-url https://download.pytorch.org/whl/rocm7.0
 
-# 安装 Qwen3-TTS
+# 3. 安装 Qwen3-TTS
 pip install qwen-tts
 
-# 安装 Edge TTS（云端引擎）
-pip install edge-tts
-
-# 安装项目依赖
+# 4. 安装项目依赖
 pip install soundfile numpy transformers accelerate
 
-# 安装 flash-attention（Triton 后端, RDNA3）
+# 5. 安装 flash-attention（Triton 后端, RDNA3）
 pip install flash-attn triton
+
+# 6. 克隆项目
+git clone https://github.com/EarthGraduates/novel-tts.git
+cd novel-tts
+
+# 7. 首次运行（自动下载模型，约 656 MB）
+./novel-tts init  # 选择 Qwen3-TTS 引擎
 ```
 
 > **注意**：如果 flash-attention 编译失败（aiter HIP 版本解析 Bug），见下方 [ROCm 踩坑](#rocm-踩坑)。
