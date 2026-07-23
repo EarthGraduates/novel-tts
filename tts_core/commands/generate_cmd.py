@@ -393,6 +393,10 @@ def run(args):
                                          len(text), 0, "error")
                             print("✗ → error")
 
+                    # ── Concat chapter if all paragraphs done ──
+                    _try_concat_chapter(ch_id, ch, sentences, output_dir,
+                                        book_name, novel)
+
     # ── Retry errors ──
     if error_list:
         print(f"\n🔄 重试 {len(error_list)} 个错误段...")
@@ -422,36 +426,19 @@ def run(args):
                              len(text), 0, "failed")
                 print("  ✗ → failed")
 
-    # ── Chapter concat ──
+    # ── Chapter concat (safety net for chapters not already concatenated) ──
     print("\n🔧 章节拼接中...")
+    concat_count = 0
     for vol in toc:
         if vol.get("type") == "front_matter":
             continue
         for part in vol.get("parts", []):
             for ch in part.get("chapters", []):
-                ch_id = ch["id"]
-                para_wavs = []
-                ok = True
-                for start_order, _ in ch.get("paragraphs", []):
-                    para_s = next((s for s in sentences if s["order"] == start_order and "status" in s), None)
-                    if para_s and para_s["status"] == "done":
-                        p = para_s.get("audio_path", "")
-                        abs_p = os.path.join(output_dir, p) if p else ""
-                        if os.path.exists(abs_p):
-                            para_wavs.append(abs_p)
-                        else:
-                            ok = False
-                    else:
-                        ok = False
-
-                if para_wavs and ok:
-                    para_wavs.sort(key=lambda p: int(os.path.basename(p).rsplit("_", 1)[1].replace(".wav", "")))
-                    ch_filename = _chapter_filename(ch_id, ch["title"])
-                    _concat_wavs(para_wavs, os.path.join(output_dir, ch_filename))
-                    ch["status"] = "done"
-                    ch["audio_path"] = ch_filename
-                    save_novel(book_name, novel)
-                    print(f"  ✓ {ch_id} → {ch_filename} ({len(para_wavs)} 段)")
+                if _try_concat_chapter(ch["id"], ch, sentences, output_dir,
+                                       book_name, novel):
+                    concat_count += 1
+    if concat_count == 0:
+        print("  (所有章节已在生成过程中完成拼接)")
 
     # ── Summary ──
     fd = sum(1 for s in sentences if s.get("status") == "done")
@@ -468,6 +455,34 @@ def run(args):
 def _save_wav(wav, path, sample_rate=24000):
     import soundfile as sf
     sf.write(path, wav, sample_rate)
+
+
+def _try_concat_chapter(ch_id, ch, sentences, output_dir, book_name, novel):
+    """Concat chapter wav if all paragraphs are done. Returns True if concatenated."""
+    para_wavs = []
+    all_ok = True
+    for start_order, _ in ch.get("paragraphs", []):
+        para_s = next((s for s in sentences if s["order"] == start_order and "status" in s), None)
+        if para_s and para_s["status"] == "done":
+            p = para_s.get("audio_path", "")
+            abs_p = os.path.join(output_dir, p) if p else ""
+            if os.path.exists(abs_p):
+                para_wavs.append(abs_p)
+            else:
+                all_ok = False
+        else:
+            all_ok = False
+
+    if para_wavs and all_ok and ch.get("status") != "done":
+        para_wavs.sort(key=lambda p: int(os.path.basename(p).rsplit("_", 1)[1].replace(".wav", "")))
+        ch_filename = _chapter_filename(ch_id, ch["title"])
+        _concat_wavs(para_wavs, os.path.join(output_dir, ch_filename))
+        ch["status"] = "done"
+        ch["audio_path"] = ch_filename
+        save_novel(book_name, novel)
+        print(f"\n  📦 {ch_id} → {ch_filename} ({len(para_wavs)} 段)")
+        return True
+    return False
 
 
 def _concat_wavs(wav_paths, output_path):
