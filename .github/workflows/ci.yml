@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Check syntax
+        run: |
+          echo "::group::Syntax check"
+          find . -name "*.py" \
+            -not -path "./.git/*" \
+            -not -path "./venv/*" \
+            -not -path "./.venv/*" \
+            -not -path "./__pycache__/*" \
+            -not -path "./.claude/*" \
+            -not -path "./.agents/*" \
+            -print0 | xargs -0 python -m py_compile
+          echo "::endgroup::"
+          echo "✅ All .py files pass syntax check"
+
+      - name: Check imports (lightweight)
+        run: |
+          echo "::group::Import check"
+          python -c "
+          import ast, sys, pathlib
+          errors = []
+          for f in pathlib.Path('tts_core').rglob('*.py'):
+              try:
+                  ast.parse(f.read_text())
+              except SyntaxError as e:
+                  errors.append(f'{f}: {e}')
+          if errors:
+              for e in errors:
+                  print(f'  ❌ {e}', file=sys.stderr)
+              sys.exit(1)
+          print('  ✅ tts_core/ all parse clean')
+          "
+          echo "::endgroup::"

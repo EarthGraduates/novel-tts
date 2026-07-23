@@ -1,0 +1,63 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Check syntax before release
+        run: |
+          find . -name "*.py" \
+            -not -path "./.git/*" \
+            -not -path "./venv/*" \
+            -not -path "./.venv/*" \
+            -not -path "./__pycache__/*" \
+            -not -path "./.claude/*" \
+            -not -path "./.agents/*" \
+            -print0 | xargs -0 python -m py_compile
+          echo "✅ Syntax check passed"
+
+      - name: Build source tarball
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/}
+          PKG="novel-tts-${VERSION}"
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="${PKG}/" HEAD > "dist/${PKG}.tar.gz"
+          git archive --format=zip --prefix="${PKG}/" HEAD > "dist/${PKG}.zip"
+          echo "📦 dist/${PKG}.tar.gz"
+          echo "📦 dist/${PKG}.zip"
+
+      - name: Generate changelog from commits
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            echo "## Changes since ${PREV_TAG}" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            git log --oneline --no-merges "${PREV_TAG}..HEAD" >> CHANGELOG.md
+          else
+            echo "## Initial release" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            git log --oneline --no-merges >> CHANGELOG.md
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: CHANGELOG.md
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+          generate_release_notes: true
