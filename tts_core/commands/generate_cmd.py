@@ -84,11 +84,11 @@ def _format_eta(remaining, avg_duration_s):
     if total_s < 60:
         return f"{total_s:.0f}s"
     elif total_s < 3600:
-        return f"{total_s / 60:.0f}m{total_s % 60:.0f}s"
+        return f"{int(total_s / 60)}m{int(total_s % 60):02d}s"
     else:
         h = int(total_s / 3600)
         m = int((total_s % 3600) / 60)
-        return f"{h}h{m}m"
+        return f"{h}h{m:02d}m"
 
 
 def run(args):
@@ -315,6 +315,7 @@ def run(args):
 
     # ── Generation loop ──
     para_count = 0
+    completed = 0
     error_list = []
 
     for vol in toc:
@@ -350,7 +351,7 @@ def run(args):
                     eta_str = ""
                     if recent and pending > 0:
                         avg_s = sum(recent) / len(recent)
-                        remaining = pending - done
+                        remaining = pending - completed
                         eta_str = f" | ETA {_format_eta(remaining, avg_s)}"
 
                     print(f"[{para_count}/{total}] {ch_id}/段[{start_order}-{end_order}]{eta_str}",
@@ -370,6 +371,7 @@ def run(args):
                         dur = _gen_and_save()
                         _log_segment(log_path, ch_id, start_order, end_order,
                                      len(text), dur, "ok")
+                        completed += 1
                         print(f"✓ {dur:.1f}s")
                     except Exception as e:
                         _log_segment(log_path, ch_id, start_order, end_order,
@@ -380,6 +382,7 @@ def run(args):
                             dur = _gen_and_save()
                             _log_segment(log_path, ch_id, start_order, end_order,
                                          len(text), dur, "ok")
+                            completed += 1
                             print("✓")
                         except Exception:
                             para_s["status"] = "error"
@@ -410,6 +413,7 @@ def run(args):
                 save_novel(book_name, novel)
                 _log_segment(log_path, ch_id, start_order, end_order,
                              len(text), len(wav) / sr, "ok_retry")
+                completed += 1
                 print("  ✓")
             except Exception:
                 para_s["status"] = "failed"
